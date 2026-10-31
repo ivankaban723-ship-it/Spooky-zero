@@ -1,0 +1,11 @@
+[package]
+name = "zx-emu"
+version = "0.1.0"
+edition = "2021"
+description = "Emulator for the ZX-16 CPU (ZERO project)"
+
+[dependencies]
+
+[profile.release]
+opt-level = 3
+lto = true

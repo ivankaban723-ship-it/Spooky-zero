@@ -1,0 +1,15 @@
+; hello.zasm - prints a string, one byte at a time
+start:
+    ldi  r1, msg        ; r1 = pointer to the string
+loop:
+    ldb  r0, [r1]       ; r0 = *r1
+    cmpi r0, 0          ; end of string?
+    jz   done
+    out  r0             ; print the character
+    addi r1, 1
+    jmp  loop
+done:
+    halt
+
+msg:
+    .string "Hello, ZERO!\n"

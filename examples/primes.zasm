@@ -1,0 +1,40 @@
+; primes.zasm - primes below 60, uses call/ret and the stack
+start:
+    ldi  r1, 2          ; n
+next_n:
+    cmpi r1, 60
+    jge  finish
+    call is_prime       ; in: r1 = n, out: r0 = 1 if prime
+    cmpi r0, 0
+    jz   skip
+    outn r1
+    ldi  r0, ' '
+    out  r0
+skip:
+    addi r1, 1
+    jmp  next_n
+finish:
+    ldi  r0, '\n'
+    out  r0
+    halt
+
+; is_prime: r1 = n -> r0 = 1/0. Clobbers r2, r3.
+is_prime:
+    ldi  r2, 2          ; d = 2
+ip_loop:
+    mov  r3, r2
+    mul  r3, r3         ; d*d
+    cmp  r1, r3
+    jlt  ip_yes         ; n < d*d  -> prime
+    mov  r3, r1
+    mod  r3, r2         ; n % d
+    cmpi r3, 0
+    jz   ip_no
+    addi r2, 1
+    jmp  ip_loop
+ip_yes:
+    ldi  r0, 1
+    ret
+ip_no:
+    ldi  r0, 0
+    ret

@@ -1,0 +1,17 @@
+; fib.zasm - first 15 Fibonacci numbers
+    ldi  r1, 0          ; a
+    ldi  r2, 1          ; b
+    ldi  r3, 15         ; counter
+loop:
+    outn r1
+    ldi  r0, ' '
+    out  r0
+    mov  r4, r1
+    add  r4, r2         ; next = a + b
+    mov  r1, r2
+    mov  r2, r4
+    addi r3, -1
+    jnz  loop
+    ldi  r0, '\n'
+    out  r0
+    halt
