@@ -11,9 +11,16 @@ import (
 //   - r1 is a scratch register, r6 is the frame pointer, r7 is the stack pointer
 //   - parameter i of n lives at [r6 + 4 + 2*(n-1-i)], locals at [r6 - 2*k]
 
+// builtinArgs lists the built-in functions and how many arguments they take.
+var builtinArgs = map[string]int{
+	"print": 1, "putc": 1, "puts": 1, "peek": 1, "peekb": 1,
+	"poke": 2, "pokeb": 2, "getc": 0, "sleep": 1, "halt": 0,
+}
+
 type Gen struct {
 	out      strings.Builder
 	funcs    map[string]*Func
+	consts   map[string]int
 	labelN   int
 	strs     []string
 	scopes   []map[string]int
@@ -22,7 +29,8 @@ type Gen struct {
 }
 
 func isBuiltin(name string) bool {
-	return name == "print" || name == "putc" || name == "puts"
+	_, ok := builtinArgs[name]
+	return ok
 }
 
 func (g *Gen) emit(format string, args ...interface{}) {
@@ -82,10 +90,16 @@ func escapeAsm(s string) string {
 }
 
 // Generate turns a parsed program into ZX-16 assembly text.
-func Generate(funcs []*Func) (asm string, err error) {
+func Generate(consts []*Const, funcs []*Func) (asm string, err error) {
 	defer recoverError(&err)
 
-	g := &Gen{funcs: map[string]*Func{}}
+	g := &Gen{funcs: map[string]*Func{}, consts: map[string]int{}}
+	for _, c := range consts {
+		if _, dup := g.consts[c.Name]; dup {
+			fail(c.Line, "constant '%s' is defined twice", c.Name)
+		}
+		g.consts[c.Name] = c.Val
+	}
 	for _, f := range funcs {
 		if isBuiltin(f.Name) {
 			fail(f.Line, "'%s' is a built-in function and cannot be redefined", f.Name)
@@ -191,6 +205,9 @@ func (g *Gen) genStmt(s Stmt) {
 	case *AssignStmt:
 		off, ok := g.lookup(st.Name)
 		if !ok {
+			if _, isConst := g.consts[st.Name]; isConst {
+				fail(st.Line, "cannot assign to constant '%s'", st.Name)
+			}
 			fail(st.Line, "undefined variable '%s'", st.Name)
 		}
 		g.genExpr(st.Val)
@@ -240,14 +257,16 @@ func (g *Gen) genExpr(e Expr) {
 		g.emit("ldi r0, %d", x.Val)
 
 	case *StrExpr:
-		fail(x.Line, "string literals can only be used as the argument of puts()")
+		g.emit("ldi r0, str%d", g.addString(x.Val)) // the address of the string
 
 	case *VarExpr:
-		off, ok := g.lookup(x.Name)
-		if !ok {
+		if off, ok := g.lookup(x.Name); ok {
+			g.emit("ld r0, [r6%+d]", off)
+		} else if val, isConst := g.consts[x.Name]; isConst {
+			g.emit("ldi r0, %d", val)
+		} else {
 			fail(x.Line, "undefined variable '%s'", x.Name)
 		}
-		g.emit("ld r0, [r6%+d]", off)
 
 	case *UnaryExpr:
 		g.genExpr(x.X)
@@ -356,41 +375,12 @@ func (g *Gen) compare(cmp, jump string) {
 	g.label(end)
 }
 
-func (g *Gen) expectArgs(c *CallExpr, n int) {
-	if len(c.Args) != n {
-		fail(c.Line, "%s() takes %d argument(s), got %d", c.Name, n, len(c.Args))
-	}
-}
-
 func (g *Gen) genCall(c *CallExpr) {
-	switch c.Name {
-	case "print":
-		g.expectArgs(c, 1)
-		g.genExpr(c.Args[0])
-		g.emit("outn r0")
-		return
-	case "putc":
-		g.expectArgs(c, 1)
-		g.genExpr(c.Args[0])
-		g.emit("out r0")
-		return
-	case "puts":
-		g.expectArgs(c, 1)
-		s, ok := c.Args[0].(*StrExpr)
-		if !ok {
-			fail(c.Line, "puts() needs a string literal")
+	if want, ok := builtinArgs[c.Name]; ok {
+		if len(c.Args) != want {
+			fail(c.Line, "%s() takes %d argument(s), got %d", c.Name, want, len(c.Args))
 		}
-		idx := g.addString(s.Val)
-		loop, end := g.newLabel(), g.newLabel()
-		g.emit("ldi r1, str%d", idx)
-		g.label(loop)
-		g.emit("ldb r0, [r1]")
-		g.emit("cmpi r0, 0")
-		g.emit("jz %s", end)
-		g.emit("out r0")
-		g.emit("addi r1, 1")
-		g.emit("jmp %s", loop)
-		g.label(end)
+		g.genBuiltin(c)
 		return
 	}
 
@@ -408,5 +398,53 @@ func (g *Gen) genCall(c *CallExpr) {
 	g.emit("call f_%s", c.Name)
 	if len(c.Args) > 0 {
 		g.emit("addi r7, %d", 2*len(c.Args))
+	}
+}
+
+func (g *Gen) genBuiltin(c *CallExpr) {
+	switch c.Name {
+	case "print":
+		g.genExpr(c.Args[0])
+		g.emit("outn r0")
+	case "putc":
+		g.genExpr(c.Args[0])
+		g.emit("out r0")
+	case "puts": // prints the zero-terminated string whose address is the argument
+		loop, end := g.newLabel(), g.newLabel()
+		g.genExpr(c.Args[0])
+		g.emit("mov r1, r0")
+		g.label(loop)
+		g.emit("ldb r0, [r1]")
+		g.emit("cmpi r0, 0")
+		g.emit("jz %s", end)
+		g.emit("out r0")
+		g.emit("addi r1, 1")
+		g.emit("jmp %s", loop)
+		g.label(end)
+	case "peek", "peekb":
+		g.genExpr(c.Args[0])
+		g.emit("mov r1, r0")
+		if c.Name == "peek" {
+			g.emit("ld r0, [r1]")
+		} else {
+			g.emit("ldb r0, [r1]")
+		}
+	case "poke", "pokeb":
+		g.genExpr(c.Args[0])
+		g.emit("push r0")
+		g.genExpr(c.Args[1])
+		g.emit("pop r1")
+		if c.Name == "poke" {
+			g.emit("st [r1], r0")
+		} else {
+			g.emit("stb [r1], r0")
+		}
+	case "getc":
+		g.emit("in r0")
+	case "sleep":
+		g.genExpr(c.Args[0])
+		g.emit("sleep r0")
+	case "halt":
+		g.emit("halt")
 	}
 }

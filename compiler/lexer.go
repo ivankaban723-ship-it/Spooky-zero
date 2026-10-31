@@ -28,7 +28,7 @@ type Token struct {
 }
 
 var keywords = map[string]bool{
-	"fn": true, "var": true, "if": true, "else": true, "while": true, "return": true,
+	"fn": true, "var": true, "const": true, "if": true, "else": true, "while": true, "return": true,
 }
 
 func isDigit(c byte) bool { return c >= '0' && c <= '9' }

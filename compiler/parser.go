@@ -79,6 +79,13 @@ type Func struct {
 	Line   int
 }
 
+// Const is a top-level named number: const NAME = 42;
+type Const struct {
+	Name string
+	Val  int
+	Line int
+}
+
 // ---- parser ----
 
 type Parser struct {
@@ -127,14 +134,33 @@ func (p *Parser) expect(s string) Token {
 	return t
 }
 
-// Parse builds the list of functions from tokens.
-func Parse(toks []Token) (funcs []*Func, err error) {
+// Parse builds the constants and functions of a program from tokens.
+func Parse(toks []Token) (consts []*Const, funcs []*Func, err error) {
 	defer recoverError(&err)
 	p := &Parser{toks: toks}
 	for p.peek().Kind != TEOF {
-		funcs = append(funcs, p.parseFunc())
+		if p.isKeyword("const") {
+			consts = append(consts, p.parseConst())
+		} else {
+			funcs = append(funcs, p.parseFunc())
+		}
 	}
-	return funcs, nil
+	return consts, funcs, nil
+}
+
+func (p *Parser) parseConst() *Const {
+	p.expect("const")
+	nameTok := p.next()
+	if nameTok.Kind != TIdent {
+		fail(nameTok.Line, "expected constant name, found %s", describe(nameTok))
+	}
+	p.expect("=")
+	val := p.next()
+	if val.Kind != TNum {
+		fail(val.Line, "a constant must be a number or a character")
+	}
+	p.expect(";")
+	return &Const{Name: nameTok.Text, Val: val.Num, Line: nameTok.Line}
 }
 
 func (p *Parser) parseFunc() *Func {

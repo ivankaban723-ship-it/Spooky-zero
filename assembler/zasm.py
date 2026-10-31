@@ -31,6 +31,7 @@ OPS = {
     "out": (0x1B, "r"),
     "mul": (0x1C, "rr"), "div": (0x1D, "rr"), "mod": (0x1E, "rr"),
     "outn": (0x1F, "r"),
+    "in": (0x20, "r"), "sleep": (0x21, "r"),
 }
 ALIASES = {"je": "jz", "jne": "jnz"}
 OPERAND_COUNT = {"none": 0, "r": 1, "i": 1, "rr": 2, "ri": 2, "load": 2, "store": 2}

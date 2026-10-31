@@ -1,4 +1,4 @@
-# Zlang (v0.1)
+# Zlang (v0.2)
 
 A tiny C-like language that compiles to ZX-16 assembly with `zlangc`.
 
@@ -17,7 +17,9 @@ fn main() {
 ## Language
 
 - The only type is a 16-bit integer. Literals: `42`, `0xFF`, `'a'`, `'\n'`.
-- Program = functions. Execution starts in `fn main()` (no parameters).
+- Program = constants and functions. Execution starts in `fn main()` (no parameters).
+- `const NAME = 42;` defines a named number at the top level (a number or a character).
+  Constants are replaced by their value, they take no memory and cannot be assigned.
 - Statements: `var x = expr;` `x = expr;` `if (c) { } else { }` `while (c) { }`
   `return expr;` and expression statements such as `foo(1, 2);`
 - Local variables are block scoped. A function that does not `return` returns 0.
@@ -33,7 +35,17 @@ fn main() {
 |---|---|
 | `print(x)` | print `x` as an unsigned decimal number |
 | `putc(x)` | print the character with code `x` |
-| `puts("text")` | print a string literal (only literals are allowed) |
+| `puts(addr)` | print the zero-terminated string at `addr`, for example `puts("text")` |
+| `peek(addr)` / `peekb(addr)` | read a 16-bit word / a byte from memory |
+| `poke(addr, v)` / `pokeb(addr, v)` | write a 16-bit word / a byte to memory |
+| `getc()` | read one byte of input (waits for it), `65535` when the input is closed |
+| `sleep(ms)` | wait `ms` milliseconds |
+| `halt()` | stop the machine |
+
+A string literal such as `"text"` is an expression whose value is the **address** of the
+text in memory, so it can be stored in a variable or passed to a function.
+Memory mapped devices (screen, keys, timer) are read and written with `peek`/`poke`,
+see `ZX16.md` and `examples/snake.zl`.
 
 ## Calling convention
 
@@ -50,4 +62,5 @@ fn main() {
 
 ## Not yet supported
 
-Global variables, arrays and pointers, `break`/`continue`, `for` loops.
+Global variables (keep state in memory with `peek`/`poke` and constants for addresses),
+arrays, `break`/`continue`, `for` loops.

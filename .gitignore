@@ -5,3 +5,5 @@ __pycache__/
 _test_*
 /*.zasm
 compiler/zlangc
+tools/zdis
+boot.img

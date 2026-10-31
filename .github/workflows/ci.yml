@@ -11,9 +11,19 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "stable"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
       - name: Build Rust emulator
         run: cargo build --release --manifest-path emulator/Cargo.toml
-      - name: Build Zlang compiler
+      - name: Build Zlang compiler (Go)
         run: cd compiler && go build -o zlangc .
+      - name: Build disassembler (C++)
+        run: g++ -std=c++17 -O2 -Wall -Wextra -o tools/zdis tools/zdis.cpp
+      - name: Build x86 boot sector (NASM)
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq nasm
+          nasm -f bin boot/boot.asm -o boot.img
+          test "$(stat -c %s boot.img)" = 512
       - name: Run tests
         run: python3 tests/run_tests.py

@@ -53,11 +53,11 @@ func main() {
 	if err != nil {
 		die(in + ": " + err.Error())
 	}
-	funcs, err := Parse(toks)
+	consts, funcs, err := Parse(toks)
 	if err != nil {
 		die(in + ": " + err.Error())
 	}
-	asm, err := Generate(funcs)
+	asm, err := Generate(consts, funcs)
 	if err != nil {
 		die(in + ": " + err.Error())
 	}

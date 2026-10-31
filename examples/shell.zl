@@ -1,0 +1,191 @@
+// shell.zl - ZOS, a tiny operating system shell for the ZX-16.
+// Reads commands from the console, runs them, repeats.
+const BUF = 0xF800;   // the line being typed
+const TOK = 0xF900;   // the first word of the line
+
+fn readline() {
+    var n = 0;
+    while (1) {
+        var c = getc();
+        if (c == 65535) {
+            return 65535;
+        }
+        if (c == 10) {
+            pokeb(BUF + n, 0);
+            return n;
+        }
+        if (c != 13 && n < 100) {
+            pokeb(BUF + n, c);
+            n = n + 1;
+        }
+    }
+    return 0;
+}
+
+fn streq(a, b) {
+    while (1) {
+        var ca = peekb(a);
+        var cb = peekb(b);
+        if (ca != cb) { return 0; }
+        if (ca == 0) { return 1; }
+        a = a + 1;
+        b = b + 1;
+    }
+    return 0;
+}
+
+fn skip_spaces(p) {
+    while (peekb(p) == 32) {
+        p = p + 1;
+    }
+    return p;
+}
+
+// copies the first word of src to dst, returns a pointer after it
+fn copy_word(src, dst) {
+    while (peekb(src) != 0 && peekb(src) != 32) {
+        pokeb(dst, peekb(src));
+        src = src + 1;
+        dst = dst + 1;
+    }
+    pokeb(dst, 0);
+    return src;
+}
+
+fn is_digit(c) {
+    return c >= 48 && c <= 57;
+}
+
+fn parse_num(p) {
+    var n = 0;
+    while (is_digit(peekb(p))) {
+        n = n * 10 + peekb(p) - 48;
+        p = p + 1;
+    }
+    return n;
+}
+
+fn skip_digits(p) {
+    while (is_digit(peekb(p))) {
+        p = p + 1;
+    }
+    return p;
+}
+
+fn is_prime(n) {
+    if (n < 2) { return 0; }
+    var d = 2;
+    while (d * d <= n) {
+        if (n % d == 0) { return 0; }
+        d = d + 1;
+    }
+    return 1;
+}
+
+fn cmd_fib(n) {
+    var a = 0;
+    var b = 1;
+    var i = 0;
+    if (n > 23) {
+        puts("fib: n must be at most 23 (16-bit numbers)\n");
+        return 0;
+    }
+    while (i < n) {
+        print(a);
+        putc(' ');
+        var t = a + b;
+        a = b;
+        b = t;
+        i = i + 1;
+    }
+    putc('\n');
+}
+
+fn cmd_primes(n) {
+    var i = 2;
+    while (i < n) {
+        if (is_prime(i)) {
+            print(i);
+            putc(' ');
+        }
+        i = i + 1;
+    }
+    putc('\n');
+}
+
+fn cmd_rev(p) {
+    var len = 0;
+    while (peekb(p + len) != 0) {
+        len = len + 1;
+    }
+    while (len > 0) {
+        len = len - 1;
+        putc(peekb(p + len));
+    }
+    putc('\n');
+}
+
+fn run_command() {
+    var rest = copy_word(BUF, TOK);
+    rest = skip_spaces(rest);
+
+    if (streq(TOK, "help")) {
+        puts("commands:\n");
+        puts("  help          this text\n");
+        puts("  ver           show the version\n");
+        puts("  echo TEXT     print TEXT\n");
+        puts("  rev TEXT      print TEXT backwards\n");
+        puts("  add A B       add two numbers\n");
+        puts("  mul A B       multiply two numbers\n");
+        puts("  fib N         first N Fibonacci numbers\n");
+        puts("  primes N      primes below N\n");
+        puts("  peek ADDR     read a 16-bit word from memory\n");
+        puts("  exit          halt the machine\n");
+    } else if (streq(TOK, "ver")) {
+        puts("ZOS 0.1 on ZX-16, written in Zlang\n");
+    } else if (streq(TOK, "echo")) {
+        puts(rest);
+        putc('\n');
+    } else if (streq(TOK, "rev")) {
+        cmd_rev(rest);
+    } else if (streq(TOK, "add")) {
+        var a = parse_num(rest);
+        var b = parse_num(skip_spaces(skip_digits(rest)));
+        print(a + b);
+        putc('\n');
+    } else if (streq(TOK, "mul")) {
+        var a2 = parse_num(rest);
+        var b2 = parse_num(skip_spaces(skip_digits(rest)));
+        print(a2 * b2);
+        putc('\n');
+    } else if (streq(TOK, "fib")) {
+        cmd_fib(parse_num(rest));
+    } else if (streq(TOK, "primes")) {
+        cmd_primes(parse_num(rest));
+    } else if (streq(TOK, "peek")) {
+        print(peek(parse_num(rest)));
+        putc('\n');
+    } else if (streq(TOK, "exit")) {
+        puts("bye\n");
+        halt();
+    } else {
+        puts("unknown command: ");
+        puts(TOK);
+        puts(" (try 'help')\n");
+    }
+}
+
+fn main() {
+    puts("\nZOS 0.1 - a tiny operating system for the ZX-16\nType 'help'.\n");
+    while (1) {
+        puts("zos> ");
+        var len = readline();
+        if (len == 65535) {
+            puts("\nbye\n");
+            return 0;
+        }
+        if (len > 0) {
+            run_command();
+        }
+    }
+}

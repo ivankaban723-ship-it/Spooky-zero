@@ -1,0 +1,142 @@
+// snake.zl - Snake for the 64x32 ZX-16 screen. Steer with arrow keys or WASD.
+const SCREEN = 0xF000;   // framebuffer, one byte per pixel
+const XS     = 0xF800;   // ring buffer with the x of every segment
+const YS     = 0xF900;   // ring buffer with the y of every segment
+const KEY    = 0xFF00;   // last key pressed (we clear it after reading)
+const TIMER  = 0xFF02;
+const HEAD   = 0xFC00;   // index of the head in the ring buffers
+const TAIL   = 0xFC02;
+const DIR    = 0xFC04;   // 1 up, 2 down, 3 left, 4 right
+const SEED   = 0xFC06;
+const SCORE  = 0xFC08;
+
+const WALL = 5;
+const BODY = 11;
+const HEADC = 10;
+const FOOD = 8;
+
+fn pixel(x, y, c) {
+    pokeb(SCREEN + y * 64 + x, c);
+}
+
+fn get_pixel(x, y) {
+    return peekb(SCREEN + y * 64 + x);
+}
+
+fn rnd(n) {
+    var s = peek(SEED) * 25173 + 13849;
+    poke(SEED, s);
+    return (s >> 4) % n;
+}
+
+fn clear_screen() {
+    var i = 0;
+    while (i < 2048) {
+        pokeb(SCREEN + i, 0);
+        i = i + 1;
+    }
+}
+
+fn draw_walls() {
+    var i = 0;
+    while (i < 64) {
+        pixel(i, 0, WALL);
+        pixel(i, 31, WALL);
+        i = i + 1;
+    }
+    i = 0;
+    while (i < 32) {
+        pixel(0, i, WALL);
+        pixel(63, i, WALL);
+        i = i + 1;
+    }
+}
+
+fn place_food() {
+    while (1) {
+        var x = 1 + rnd(62);
+        var y = 1 + rnd(30);
+        if (get_pixel(x, y) == 0) {
+            pixel(x, y, FOOD);
+            return 0;
+        }
+    }
+}
+
+fn read_dir() {
+    var k = peek(KEY);
+    if (k != 0) {
+        poke(KEY, 0);
+        var d = peek(DIR);
+        if ((k == 1 || k == 'w') && d != 2) { poke(DIR, 1); }
+        if ((k == 2 || k == 's') && d != 1) { poke(DIR, 2); }
+        if ((k == 3 || k == 'a') && d != 4) { poke(DIR, 3); }
+        if ((k == 4 || k == 'd') && d != 3) { poke(DIR, 4); }
+    }
+}
+
+// plays one game, returns the score
+fn play() {
+    clear_screen();
+    draw_walls();
+    var i = 0;
+    while (i < 3) {
+        pokeb(XS + i, 28 + i);
+        pokeb(YS + i, 16);
+        pixel(28 + i, 16, BODY);
+        i = i + 1;
+    }
+    pixel(30, 16, HEADC);
+    poke(HEAD, 2);
+    poke(TAIL, 0);
+    poke(DIR, 4);
+    poke(SCORE, 0);
+    place_food();
+
+    while (1) {
+        read_dir();
+        var h = peek(HEAD);
+        var x = peekb(XS + h);
+        var y = peekb(YS + h);
+        var d = peek(DIR);
+        if (d == 1) { y = y - 1; }
+        if (d == 2) { y = y + 1; }
+        if (d == 3) { x = x - 1; }
+        if (d == 4) { x = x + 1; }
+
+        var c = get_pixel(x, y);
+        if (c != 0 && c != FOOD) {
+            return peek(SCORE);
+        }
+
+        pixel(peekb(XS + h), peekb(YS + h), BODY);
+        h = (h + 1) & 255;
+        pokeb(XS + h, x);
+        pokeb(YS + h, y);
+        poke(HEAD, h);
+        pixel(x, y, HEADC);
+
+        if (c == FOOD) {
+            poke(SCORE, peek(SCORE) + 1);
+            place_food();
+        } else {
+            var t = peek(TAIL);
+            pixel(peekb(XS + t), peekb(YS + t), 0);
+            poke(TAIL, (t + 1) & 255);
+        }
+        sleep(70);
+    }
+    return 0;
+}
+
+fn main() {
+    poke(SEED, peek(TIMER) + 1);
+    puts("SNAKE - arrows or WASD to steer\n");
+    while (1) {
+        var score = play();
+        puts("GAME OVER, score: ");
+        print(score);
+        putc('\n');
+        sleep(1500);
+    }
+}
