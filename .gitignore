@@ -2,4 +2,6 @@ target/
 __pycache__/
 *.pyc
 *.bin
-_test_*.bin
+_test_*
+/*.zasm
+compiler/zlangc

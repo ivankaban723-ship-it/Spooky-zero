@@ -62,5 +62,40 @@ for name, expected in EXPECTED.items():
 if not os.path.exists(rust_bin):
     print("note: Rust emulator not built, skipped (run `make build`)")
 
+# --- Zlang compiler (needs the Go binary: `make compiler`) ---
+EXPECTED_ZL = {
+    "hello": b"Hello from Zlang!\n",
+    "fib": EXPECTED["fib"],
+    "primes": EXPECTED["primes"],
+    "ops": b"14 20 4 4 19 1 0 1 3 5 1 0 0 1 0 \n",
+}
+zlangc = os.path.join(ROOT, "compiler", "zlangc")
+if os.name == "nt":
+    zlangc += ".exe"
+
+if os.path.exists(zlangc):
+    for name, expected in EXPECTED_ZL.items():
+        src = os.path.join(ROOT, "examples", name + ".zl")
+        asm_path = os.path.join(ROOT, f"_test_{name}.zasm")
+        res = subprocess.run([zlangc, src, "-o", asm_path], capture_output=True, text=True)
+        if res.returncode != 0:
+            check(f"{name}.zl compiles", False, res.stderr)
+            continue
+        with open(asm_path, encoding="utf-8") as f:
+            prog = zasm.assemble(f.read())
+        os.remove(asm_path)
+        out, code = pyemu.run(prog)
+        check(f"{name}.zl (python emulator)", out == expected and code == 0, repr(out))
+        if os.path.exists(rust_bin):
+            path = os.path.join(ROOT, f"_test_{name}.bin")
+            with open(path, "wb") as f:
+                f.write(prog)
+            res = subprocess.run([rust_bin, path], capture_output=True)
+            os.remove(path)
+            check(f"{name}.zl (rust emulator)", res.stdout == expected and res.returncode == 0, repr(res.stdout))
+else:
+    print("note: Zlang compiler not built, skipped (run `make compiler`)")
+
+
 print("\nall tests passed" if failures == 0 else f"\n{failures} test(s) FAILED")
 sys.exit(1 if failures else 0)

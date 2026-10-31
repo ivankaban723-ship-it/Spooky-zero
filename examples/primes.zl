@@ -1,0 +1,23 @@
+// primes.zl - primes below 60
+fn is_prime(n) {
+    var d = 2;
+    while (d * d <= n) {
+        if (n % d == 0) {
+            return 0;
+        }
+        d = d + 1;
+    }
+    return 1;
+}
+
+fn main() {
+    var n = 2;
+    while (n < 60) {
+        if (is_prime(n)) {
+            print(n);
+            putc(' ');
+        }
+        n = n + 1;
+    }
+    putc('\n');
+}

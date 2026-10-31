@@ -1,0 +1,4 @@
+// hello.zl - the same program, now in Zlang
+fn main() {
+    puts("Hello from Zlang!\n");
+}

@@ -1,0 +1,28 @@
+// ops.zl - operator precedence, comparisons, logic and argument order
+fn show(x) {
+    print(x);
+    putc(' ');
+}
+
+fn sub3(a, b, c) {
+    return a - b - c;
+}
+
+fn main() {
+    show(2 + 3 * 4);        // 14
+    show((2 + 3) * 4);      // 20
+    show(7 - 2 - 1);        // 4
+    show(100 / 7 % 5);      // 4
+    show(1 << 4 | 3);       // 19
+    show(1 < 2 && 3 > 2);   // 1
+    show(2 < 1 || 3 > 5);   // 0
+    show(!0);               // 1
+    show(-5 + 8);           // 3
+    show(sub3(10, 3, 2));   // 5
+    show(5 <= 5);           // 1
+    show(6 >= 7);           // 0
+    show(3 != 3);           // 0
+    show(0 - 3 < 2);        // 1 (comparisons are signed)
+    show(!5);               // 0
+    putc('\n');
+}
